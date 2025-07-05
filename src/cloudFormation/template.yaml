@@ -1,0 +1,116 @@
+Transform: AWS::Serverless-2016-10-31
+Resources:
+  getTop10Movies:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: !Sub
+        - Stack ${AWS::StackName} Function ${ResourceName}
+        - ResourceName: getTop10Movies
+      CodeUri: ../lambda
+      Handler: index.handler
+      Runtime: python3.13
+      MemorySize: 3008
+      Timeout: 30
+      Tracing: Active
+      Environment:
+        Variables:
+          TOP10QUEUE_QUEUE_NAME: !GetAtt top10Queue.QueueName
+          TOP10QUEUE_QUEUE_ARN: !GetAtt top10Queue.Arn
+          TOP10QUEUE_QUEUE_URL: !Ref top10Queue
+      Policies:
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt top10Queue.QueueName
+  getTop10MoviesLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${getTop10Movies}
+  top10Queue:
+    Type: AWS::SQS::Queue
+    Properties:
+      FifoQueue: true
+      ContentBasedDeduplication: true
+      MessageRetentionPeriod: 345600
+  enrichTop10Movies:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: !Sub
+        - Stack ${AWS::StackName} Function ${ResourceName}
+        - ResourceName: enrichTop10Movies
+      CodeUri: ../lambda
+      Handler: index.handler
+      Runtime: python3.13
+      MemorySize: 3008
+      Timeout: 30
+      Tracing: Active
+      Events:
+        top10Queue:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt top10Queue.Arn
+            BatchSize: 1
+      Environment:
+        Variables:
+          TOP10MOVIESSTORAGE_BUCKET_NAME: !Ref top10MoviesStorage
+          TOP10MOVIESSTORAGE_BUCKET_ARN: !GetAtt top10MoviesStorage.Arn
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:GetObjectAcl
+                - s3:GetObjectLegalHold
+                - s3:GetObjectRetention
+                - s3:GetObjectTorrent
+                - s3:GetObjectVersion
+                - s3:GetObjectVersionAcl
+                - s3:GetObjectVersionForReplication
+                - s3:GetObjectVersionTorrent
+                - s3:ListBucket
+                - s3:ListBucketMultipartUploads
+                - s3:ListBucketVersions
+                - s3:ListMultipartUploadParts
+                - s3:AbortMultipartUpload
+                - s3:DeleteObject
+                - s3:DeleteObjectVersion
+                - s3:PutObject
+                - s3:PutObjectLegalHold
+                - s3:PutObjectRetention
+                - s3:RestoreObject
+              Resource:
+                - !Sub arn:${AWS::Partition}:s3:::${top10MoviesStorage}
+                - !Sub arn:${AWS::Partition}:s3:::${top10MoviesStorage}/*
+  enrichTop10MoviesLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${enrichTop10Movies}
+  top10MoviesStorage:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-top10movi-${AWS::AccountId}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: alias/aws/s3
+      PublicAccessBlockConfiguration:
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+  top10MoviesStorageBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref top10MoviesStorage
+      PolicyDocument:
+        Id: RequireEncryptionInTransit
+        Version: '2012-10-17'
+        Statement:
+          - Principal: '*'
+            Action: '*'
+            Effect: Deny
+            Resource:
+              - !GetAtt top10MoviesStorage.Arn
+              - !Sub ${top10MoviesStorage.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
