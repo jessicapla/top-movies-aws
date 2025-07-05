@@ -1,0 +1,3 @@
+template-file-path: src/cloudFormation/template.yaml
+parameters: {}
+tags: {}
