@@ -20,6 +20,12 @@ Resources:
       Policies:
         - SQSSendMessagePolicy:
             QueueName: !GetAtt top10Queue.QueueName
+        - Statement: 
+          - Sid: SQSGetQueueUrl
+            Effect: Allow
+            Action:
+              - sqs:GetQueueUrl
+            Resource: !GetAtt top10Queue.Arn
   getTop10MoviesLogGroup:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Retain
