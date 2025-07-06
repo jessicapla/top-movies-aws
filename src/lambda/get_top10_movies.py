@@ -3,12 +3,13 @@ import requests
 import logging
 import json
 from typing import Dict, Any, List
+from shared_types.movie_list import Movie, Top10Movies
 
 logger = logging.getLogger()
 logger.setLevel("INFO")
 
 
-def get_top10_movies() -> List[Dict[str, str]]:
+def get_top10_movies() -> List[Movie]:
     """
     Fetches the top 10 movies from the IMDB Top 250 Movies list.
 
@@ -46,7 +47,7 @@ def send_to_sqs(
     Sends data to a SQS FIFO queue.
 
     Parameters:
-      data (Dict[str, Any]): The top 10 movies data to send.
+      data (Dict[str, Any]): The data to send.
       queueName (str): The name of the SQS queue to send the message to.
       messageGroupId (str): The ID of the message group for FIFO queues.
       messageDeduplicationId (str): The ID used to deduplicate messages in FIFO queues.
@@ -77,13 +78,13 @@ def handler(event: Dict[str, Any], context: Any) -> None:
     """
     logger.info("Fetching list of top movies...")
     top_movies = get_top10_movies()
-    data = {
-        "movies": top_movies,
+    data: Top10Movies = {
+        "top10": top_movies,
     }
 
     logger.info(f"Sending top movies data to SQS: {data}")
     send_to_sqs(
-        data=data,
+        data=dict(data),
         queueName="top10-movies-stack-top10Queue-RoB0UvqyJxxk.fifo",  # TODO: export consts
         messageGroupId="top10-movies",
         messageDeduplicationId="top10-movies-batch",
