@@ -1,12 +1,15 @@
-import boto3
-import requests
 import logging
-import json
-from typing import Dict, Any, List
+import os
+from typing import Any, Dict, List
+
+import requests
+from helpers.aws import send_to_sqs
 from shared_types.movie_list import Movie, Top10Movies
 
 logger = logging.getLogger()
 logger.setLevel("INFO")
+
+TOP_MOVIES_URL = "https://top-movies.s3.eu-central-1.amazonaws.com/Top250Movies.json"
 
 
 def get_top10_movies() -> List[Movie]:
@@ -25,46 +28,14 @@ def get_top10_movies() -> List[Movie]:
             and raises them to the caller.
     """
     try:
-        response = requests.get(
-            "https://top-movies.s3.eu-central-1.amazonaws.com/Top250Movies.json"
-        )
+        logger.info("Fetching list of top movies...")
+        response = requests.get(TOP_MOVIES_URL)
         data = response.json()
 
         logger.info("Successfully fetched list of movies.")
         return data["items"][:10]
     except Exception as e:
         logger.error(f"Error fetching Top Movies list: {str(e)}")
-        raise
-
-
-def send_to_sqs(
-    data: Dict[str, Any],
-    queueName: str,
-    messageGroupId: str,
-    messageDeduplicationId: str,
-) -> None:
-    """
-    Sends data to a SQS FIFO queue.
-
-    Parameters:
-      data (Dict[str, Any]): The data to send.
-      queueName (str): The name of the SQS queue to send the message to.
-      messageGroupId (str): The ID of the message group for FIFO queues.
-      messageDeduplicationId (str): The ID used to deduplicate messages in FIFO queues.
-    """
-    try:
-        sqs = boto3.resource("sqs")
-        queue = sqs.get_queue_by_name(QueueName=queueName)
-
-        response = queue.send_message(
-            MessageBody=json.dumps(data),
-            MessageGroupId=messageGroupId,
-            MessageDeduplicationId=messageDeduplicationId,
-        )
-
-        logger.info(f"Message sent to SQS. MessageId: {response['MessageId']}")
-    except Exception as e:
-        logger.error(f"Error when sending message to SQS: {str(e)}")
         raise
 
 
@@ -76,7 +47,12 @@ def handler(event: Dict[str, Any], context: Any) -> None:
         event: Dict containing the Lambda function event data
         context: Lambda runtime context
     """
-    logger.info("Fetching list of top movies...")
+
+    queue_name = os.environ.get("TOP10QUEUE_QUEUE_NAME")
+    if not queue_name:
+        logger.error("TOP10QUEUE_QUEUE_NAME environment variable is not set.")
+        raise ValueError("TOP10QUEUE_QUEUE_NAME environment variable is not set.")
+
     top_movies = get_top10_movies()
     data: Top10Movies = {
         "top10": top_movies,
@@ -85,7 +61,7 @@ def handler(event: Dict[str, Any], context: Any) -> None:
     logger.info(f"Sending top movies data to SQS: {data}")
     send_to_sqs(
         data=dict(data),
-        queueName="top10-movies-stack-top10Queue-RoB0UvqyJxxk.fifo",  # TODO: export consts
+        queueName=queue_name,
         messageGroupId="top10-movies",
         messageDeduplicationId="top10-movies-batch",
     )

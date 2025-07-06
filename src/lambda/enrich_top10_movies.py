@@ -4,9 +4,9 @@ import os
 from typing import Any, Dict, List
 
 import requests
-
+from helpers.aws import store_json_s3
 from shared_types.aws_types import SQSEvent
-from shared_types.movie_list import Top10Movies, Movie
+from shared_types.movie_list import Movie
 
 logger = logging.getLogger()
 logger.setLevel("INFO")
@@ -29,6 +29,7 @@ def get_imdb_data(movie_id: str) -> dict:
 
     logger.info("Fetching IMDb data for movie ID: %s", movie_id)
     url = f"https://www.omdbapi.com/?apikey={api_key}&i={movie_id}"
+
     try:
         response = requests.get(url)
         return response.json()
@@ -38,12 +39,10 @@ def get_imdb_data(movie_id: str) -> dict:
 
 
 def enrich_movie_list(movieList: List[Movie]) -> List[Dict[str, Any]]:
-    """Placeholder"""
     """
-    Enriches the top 10 movies with additional IMDb data.
-
+    Enriches a list of movies with additional IMDb data.
     Parameters:
-        top10Movies (Top10Movies): The top 10 movies to enrich.
+        movieList (List[Movie]): The list of movies to enrich.
     """
     logger.info("Enriching top 10 movies with IMDb data...")
     enriched_movies = []
@@ -54,42 +53,27 @@ def enrich_movie_list(movieList: List[Movie]) -> List[Dict[str, Any]]:
 
     return enriched_movies
 
-def store_s3_data(data: Dict[str, Any], bucket_name: str, object_key: str) -> None:
-    """
-    Stores the enriched movie data in an S3 bucket.
-
-    Parameters:
-        data (Dict[str, Any]): The enriched movie data to store.
-        bucket_name (str): The name of the S3 bucket.
-        object_key (str): The key under which to store the data in the bucket.
-    """
-    import boto3
-
-    s3 = boto3.client("s3")
-    try:
-        s3.put_object(
-            Bucket=bucket_name,
-            Key=object_key,
-            Body=json.dumps(data),
-            ContentType="application/json"
-        )
-        logger.info("Successfully stored enriched movies in S3 bucket %s under key %s", bucket_name, object_key)
-    except Exception as e:
-        logger.error("Error storing enriched movies in S3: %s", str(e))
-        raise
-
 
 def handler(event: SQSEvent, context: Any) -> None:
     """
-    Main Lambda handler function
+    Main Lambda handler function.
+    Processes an SQS event containing a list of top 10 movies, enriches the movie
+    data with additional IMDb information, and stores the enriched data in an S3 bucket.
+
     Parameters:
-        event: Dict containing the Lambda function event data. This should be an SQS event.
+        event: Dict containing the SQS event data.
         context: Lambda runtime context
     Returns:
-        TODO
+        None
     """
+    bucket_name = os.environ.get("TOP10MOVIESSTORAGE_BUCKET_NAME")
+    if not bucket_name:
+        logger.error("TOP10MOVIESSTORAGE_BUCKET_NAME environment variable is not set.")
+        raise ValueError(
+            "TOP10MOVIESSTORAGE_BUCKET_NAME environment variable is not set."
+        )
+
     body = event["Records"][0]["body"]
-    logger.info("Processing body: %s", body)
     movies = json.loads(body).get("top10", [])
 
     if not movies:
@@ -97,13 +81,14 @@ def handler(event: SQSEvent, context: Any) -> None:
         return
 
     enriched_movies = enrich_movie_list(movieList=movies)
-    logger.info("Enriched movies: %s", enriched_movies)
     with_date = {
         "top10": enriched_movies,
-        "date": event["Records"][0]["attributes"]["SentTimestamp"]}
+        "date": event["Records"][0]["attributes"]["SentTimestamp"],
+    }
+
     logger.info("Storing enriched movies in S3...")
-    store_s3_data(
+    store_json_s3(
         data=with_date,
-        bucket_name="top10-movies-stack-top10moviesstorage-mdsjbvn2jnp2", # TODO
-        object_key="enriched_top10_movies.json"
+        bucket_name=bucket_name,
+        object_key="enriched_top10_movies.json",
     )
