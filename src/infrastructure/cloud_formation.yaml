@@ -7,7 +7,7 @@ Resources:
         - Stack ${AWS::StackName} Function ${ResourceName}
         - ResourceName: getTop10Movies
       CodeUri: ../lambda
-      Handler: index.handler
+      Handler: get_top10_movies.handler
       Runtime: python3.13
       MemorySize: 3008
       Timeout: 30
@@ -38,7 +38,7 @@ Resources:
         - Stack ${AWS::StackName} Function ${ResourceName}
         - ResourceName: enrichTop10Movies
       CodeUri: ../lambda
-      Handler: index.handler
+      Handler: enrich_top10_movies.handler
       Runtime: python3.13
       MemorySize: 3008
       Timeout: 30
@@ -88,7 +88,6 @@ Resources:
   top10MoviesStorage:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub ${AWS::StackName}-top10movi-${AWS::AccountId}
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:

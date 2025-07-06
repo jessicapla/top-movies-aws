@@ -10,7 +10,7 @@ def enrich_top10_movies() -> None:
 
 
 
-def lambda_handler(event: Dict[str, Any], context: Any) -> None:
+def handler(event: Dict[str, Any], context: Any) -> None:
   """
   Main Lambda handler function
   Parameters:

@@ -1,0 +1,42 @@
+name: Deploy to AWS with CloudFormation
+
+on:
+  push:
+    branches:
+     - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v3
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: 'us-east-2'
+
+    - name: Setup Python 3.13
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.13'
+
+    - name: Setup AWS SAM CLI
+      uses: aws-actions/setup-sam@v2
+
+    - name: Package CloudFormation Template
+      run: |
+        sam build --template src/infrastructure/cloud_formation.yaml
+        sam package --s3-bucket top-movies-pipeline-artifacts --output-template-file packaged-template.yaml
+
+    - name: Deploy Resources with AWS CloudFormation
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
+      with:
+        name: top10-movies-stack
+        template: packaged-template.yaml
+        capabilities: CAPABILITY_AUTO_EXPAND, CAPABILITY_NAMED_IAM, CAPABILITY_IAM
+        no-fail-on-empty-changeset: "1"
+      
