@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 
 import requests
 from helpers.aws import store_json_s3
+from helpers.environment import get_env_var
 from shared_types.aws_types import SQSEvent
 from shared_types.movie_list import Movie
 
@@ -22,10 +23,7 @@ def get_imdb_data(movie_id: str) -> dict:
     Returns:
         dict: A dictionary containing the IMDb data for the movie.
     """
-    api_key = os.environ.get("OMDB_API_KEY")
-    if not api_key:
-        logger.error("OMDB_API_KEY environment variable is not set.")
-        raise ValueError("OMDB_API_KEY environment variable is not set.")
+    api_key = get_env_var("OMDB_API_KEY")
 
     logger.info("Fetching IMDb data for movie ID: %s", movie_id)
     url = f"https://www.omdbapi.com/?apikey={api_key}&i={movie_id}"
@@ -66,12 +64,7 @@ def handler(event: SQSEvent, context: Any) -> None:
     Returns:
         None
     """
-    bucket_name = os.environ.get("TOP10MOVIESSTORAGE_BUCKET_NAME")
-    if not bucket_name:
-        logger.error("TOP10MOVIESSTORAGE_BUCKET_NAME environment variable is not set.")
-        raise ValueError(
-            "TOP10MOVIESSTORAGE_BUCKET_NAME environment variable is not set."
-        )
+    bucket_name = get_env_var("TOP10MOVIESSTORAGE_BUCKET_NAME")
 
     body = event["Records"][0]["body"]
     movies = json.loads(body).get("top10", [])

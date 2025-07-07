@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 
 import requests
 from helpers.aws import send_to_sqs
+from helpers.environment import get_env_var
 from shared_types.movie_list import Movie, Top10Movies
 
 logger = logging.getLogger()
@@ -48,11 +49,8 @@ def handler(event: Dict[str, Any], context: Any) -> None:
         context: Lambda runtime context
     """
 
-    queue_name = os.environ.get("TOP10QUEUE_QUEUE_NAME")
-    if not queue_name:
-        logger.error("TOP10QUEUE_QUEUE_NAME environment variable is not set.")
-        raise ValueError("TOP10QUEUE_QUEUE_NAME environment variable is not set.")
-
+    queue_name = get_env_var("TOP10QUEUE_QUEUE_NAME")
+    
     top_movies = get_top10_movies()
     data: Top10Movies = {
         "top10": top_movies,
