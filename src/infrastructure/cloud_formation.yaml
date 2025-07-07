@@ -119,3 +119,32 @@ Resources:
             Condition:
               Bool:
                 aws:SecureTransport: 'false'
+  triggerTop10MoviesDaily:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      ScheduleExpression: rate(1 day)
+      FlexibleTimeWindow:
+        Mode: 'OFF'
+      Target:
+        Arn: !GetAtt getTop10Movies.Arn
+        RoleArn: !GetAtt triggerTop10MoviesDailyTogetTop10MoviesRole.Arn
+      StartDate: '2025-07-07T01:02:00.000Z'
+      EndDate: '2025-07-17T00:00:00.000Z'
+  triggerTop10MoviesDailyTogetTop10MoviesRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StartExecutionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt getTop10Movies.Arn
